@@ -1,0 +1,903 @@
+{
+  "name": "AI Trip Reel Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "AI Trip Reel Generator",
+        "formDescription": "Create a personalized travel Reel from YOUR photos & videos, inspired by a reference Reel. Tip: for the trip media, paste PUBLIC direct links (Google Drive/Dropbox/S3 direct URLs) — one per line — so the render engine can fetch them.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Reference Instagram Reel link (optional)",
+              "fieldName": "reference_reel_link",
+              "placeholder": "https://www.instagram.com/reel/..."
+            },
+            {
+              "fieldLabel": "Or upload a reference video (optional)",
+              "fieldType": "file",
+              "fieldName": "reference_video",
+              "multipleFiles": false,
+              "acceptFileTypes": ".mp4,.mov,.webm"
+            },
+            {
+              "fieldLabel": "Your trip photos & videos — public direct URLs, one per line",
+              "fieldType": "textarea",
+              "fieldName": "trip_media_urls",
+              "placeholder": "https://.../beach.jpg\nhttps://.../surf.mp4",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Editing instructions (optional)",
+              "fieldType": "textarea",
+              "fieldName": "edit_instructions",
+              "placeholder": "e.g. make it cinematic, faster cuts, remove text, use more photos"
+            },
+            {
+              "fieldLabel": "Target duration (seconds)",
+              "fieldType": "number",
+              "fieldName": "target_duration",
+              "placeholder": "20"
+            },
+            {
+              "fieldLabel": "Email to send the finished Reel to",
+              "fieldType": "email",
+              "fieldName": "email",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bc8ce9df-149b-4e25-bf47-e789fab28025",
+      "name": "Trip Reel Request",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        288
+      ],
+      "webhookId": "36c2e23d-1f28-4ac0-8261-29251515dc8d"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "link",
+              "leftValue": "={{ $json.reference_reel_link }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4ed76e31-82cc-4846-a0ac-594976054a53",
+      "name": "Has Reel Link?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        224,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/apify~instagram-reel-scraper/run-sync-get-dataset-items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpTemplatedCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ directUrls: [$json.reference_reel_link], resultsLimit: 1 }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "650a1346-8bd5-46ea-beb5-5f7d1c3dab86",
+      "name": "Fetch Instagram Reel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        0
+      ],
+      "credentials": {
+        "httpTemplatedCustomAuth": {
+          "id": "i9a08PYr9WamPtiT",
+          "name": "Apify API Token (yuvaraj)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-2.5-flash",
+          "cachedResultName": "gemini-2.5-flash"
+        },
+        "text": "You are a professional short-form video editor. Analyze this reference Reel ONLY to extract its editing pattern (do NOT describe copyrighted content to reproduce it literally). Return a JSON object describing: overall_style, total_duration_seconds, clip_count, per_clip_durations (array of seconds), pacing (slow/medium/fast), transition_types (array), text_placement_style, effects (array), camera_movement_style, color_grade (mood/LUT feel), music_energy, beat_sync_notes, intro_style, ending_style. Be concise and structural, not a shot-by-shot copy.",
+        "videoUrls": "={{ $json.videoUrl }}",
+        "options": {
+          "maxOutputTokens": 2048
+        }
+      },
+      "id": "12f650e6-af93-4f9d-a0da-50fbe0f01c96",
+      "name": "Analyze Reference (URL)",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        672,
+        0
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "7ccefd23-9a42-45c8-85dd-03b25eabe071",
+      "name": "Reference Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        896,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-2.5-flash",
+          "cachedResultName": "gemini-2.5-flash"
+        },
+        "text": "You are a professional short-form video editor. Analyze this reference video ONLY to extract its editing pattern (structure, not literal content). Return a JSON object with: overall_style, total_duration_seconds, clip_count, per_clip_durations, pacing, transition_types, text_placement_style, effects, camera_movement_style, color_grade, music_energy, beat_sync_notes, intro_style, ending_style.",
+        "inputType": "binary",
+        "binaryPropertyName": "reference_video",
+        "options": {
+          "maxOutputTokens": 2048
+        }
+      },
+      "id": "32384e12-75eb-4183-a509-7e89a22b1e3a",
+      "name": "Analyze Reference (Upload)",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        672,
+        192
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nlet recipe = '';\nfor (const it of items) {\n  const c = it.json.content || it.json.text || '';\n  const s = ('' + c);\n  if (s.length > recipe.length) { recipe = s; }\n}\nreturn [{ json: { referenceRecipe: recipe || 'No reference analysis available; use a generic energetic 15s travel montage structure.' } }];"
+      },
+      "id": "23aeba20-985b-4892-9745-c23e9de3d49f",
+      "name": "Reference Recipe",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "05a79114-2011-434c-9c89-c44987284af1",
+      "name": "Combine Analysis",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1344,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const j = $input.first().json;\nconst raw = (j.trip_media_urls || '').toString();\nconst urls = raw.split(/\\r?\\n/).map(s => s.trim()).filter(s => s.length > 0);\nconst imageExt = ['jpg','jpeg','png','gif','webp','heic','bmp'];\nconst images = [];\nconst videos = [];\nfor (const u of urls) {\n  const clean = u.split('?')[0].toLowerCase();\n  const dot = clean.lastIndexOf('.');\n  const ext = dot >= 0 ? clean.slice(dot + 1) : '';\n  if (imageExt.indexOf(ext) >= 0) { images.push(u); } else { videos.push(u); }\n}\nconst dur = parseInt(j.target_duration, 10);\nreturn [{ json: {\n  allMediaUrls: urls,\n  imageUrls: images,\n  videoUrls: videos,\n  imageUrlsCsv: images.join(','),\n  videoUrlsCsv: videos.join(','),\n  mediaCount: urls.length,\n  targetDuration: isNaN(dur) ? 20 : dur,\n  instructions: (j.edit_instructions || '').toString(),\n  email: j.email || '',\n  referenceLink: (j.reference_reel_link || '').toString()\n}}];"
+      },
+      "id": "b89bf8d5-b30e-490e-adb1-a0b93d87db5b",
+      "name": "Prepare Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-2.5-flash",
+          "cachedResultName": "gemini-2.5-flash"
+        },
+        "text": "These are a traveler's trip PHOTOS (URLs in order). For EACH photo return a JSON array item with: index, url, subject, scene_type (landscape/food/portrait/action/architecture), visual_quality (1-10), best_moment (true/false), suggested_use (intro/hero/b-roll/ending), notes. Pick the strongest, most visually striking shots as best_moment.",
+        "imageUrls": "={{ $json.imageUrlsCsv }}",
+        "options": {
+          "maxOutputTokens": 2048
+        }
+      },
+      "id": "a519dfe9-a2fe-43c2-98c4-1dd495343b79",
+      "name": "Analyze Photos",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        672,
+        384
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "5432cdc3-58f5-4c96-a321-6c0163cd8388",
+      "name": "Media Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        896,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-2.5-flash",
+          "cachedResultName": "gemini-2.5-flash"
+        },
+        "text": "These are a traveler's trip VIDEO clips (URLs, comma-separated, in order). For EACH clip return a JSON array item with: index, url, content_summary, best_segment_start_seconds, best_segment_end_seconds, motion_level, visual_quality (1-10), best_moment (true/false), suggested_use (intro/hero/b-roll/ending). Identify the single best few-second segment of each clip to use.",
+        "videoUrls": "={{ $json.videoUrlsCsv }}",
+        "options": {
+          "maxOutputTokens": 2048
+        }
+      },
+      "id": "94bb53d0-ec7b-4000-9cd0-50a3a590d0de",
+      "name": "Analyze Videos",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        672,
+        576
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "function grab(name){\n  try {\n    const it = $(name).first().json;\n    return it.content || it.text || '';\n  } catch (e) { return ''; }\n}\nconst photos = grab('Analyze Photos');\nconst videos = grab('Analyze Videos');\nreturn [{ json: {\n  mediaAnalysis: 'PHOTOS:\\n' + JSON.stringify(photos) + '\\n\\nVIDEOS:\\n' + JSON.stringify(videos)\n} }];"
+      },
+      "id": "5c6863b1-c476-45a8-92a5-be4a00120f5b",
+      "name": "Consolidate Media Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-2.5-flash",
+          "cachedResultName": "gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an expert AI video editor. Build an ORIGINAL editing timeline for a 9:16 (1080x1920) Instagram Reel using ONLY the traveler's own media. Use the reference recipe ONLY as inspiration for structure, pacing, clip count, transitions, text placement and color mood — DO NOT copy the reference content.\n\nREFERENCE EDITING RECIPE:\n{{ $json.referenceRecipe }}\n\nTRAVELER MEDIA ANALYSIS (choose the best moments; images have url, videos have url + best_segment_start_seconds/end):\n{{ $json.mediaAnalysis }}\n\nAVAILABLE MEDIA URLS (only use these exact URLs):\nimages: {{ $(\"Prepare Inputs\").item.json.imageUrlsCsv }}\nvideos: {{ $(\"Prepare Inputs\").item.json.videoUrlsCsv }}\n\nUSER INSTRUCTIONS (override defaults, e.g. faster / more photos / cinematic / remove text / duration): {{ $(\"Prepare Inputs\").item.json.instructions }}\nTARGET DURATION (seconds): {{ $(\"Prepare Inputs\").item.json.targetDuration }}\n\nOutput STRICT JSON in Shotstack Edit format with this shape:\n{ \"timeline\": { \"background\": \"#000000\", \"tracks\": [ { \"clips\": [ { \"asset\": { \"type\": \"image\"|\"video\", \"src\": \"<one of the media urls>\", \"trim\": <video start sec, videos only> }, \"start\": <sec>, \"length\": <sec>, \"fit\": \"crop\", \"scale\": 1, \"position\": \"center\", \"transition\": { \"in\": \"fade\"|\"slideLeft\"|\"zoom\", \"out\": \"fade\" }, \"effect\": \"zoomIn\"|\"slideUp\" } ] }, { \"clips\": [ { \"asset\": { \"type\": \"title\"|\"html\", \"text\": \"<short caption>\", \"style\": \"minimal\" }, \"start\": <sec>, \"length\": <sec>, \"position\": \"bottom\" } ] } ] } }\nRules: total of all clip lengths on the main track must equal TARGET DURATION. Map clip count and per-clip lengths to match the reference pacing. Put media on track 1 (first) and text captions on track 2. If the user asked to remove text, omit the text track. Only reference URLs that appear in the available media lists. Return ONLY the JSON object."
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "builtInTools": {},
+        "options": {
+          "systemMessage": "You are a meticulous video-editing planner. You output only valid Shotstack Edit JSON and never copy the reference content, only its editing style.",
+          "maxOutputTokens": 4096,
+          "temperature": 0.7
+        }
+      },
+      "id": "9c547999-9d42-4272-8c93-7392a1683e4b",
+      "name": "Build Edit Plan",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        1568,
+        288
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const plan = $input.first().json;\nlet edit = plan.content;\nif (typeof edit === 'string') { try { edit = JSON.parse(edit); } catch (e) { edit = {}; } }\nif (!edit || typeof edit !== 'object') { edit = {}; }\nconst timeline = edit.timeline || edit;\nconst body = {\n  timeline: timeline,\n  output: { format: 'mp4', fps: 30, size: { width: 1080, height: 1920 } }\n};\nreturn [{ json: { renderBody: body } }];"
+      },
+      "id": "12a431f8-5bb7-413c-ba2c-ba4a8dcb5a9d",
+      "name": "Build Render Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.shotstack.io/edit/stage/render",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpTemplatedCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.renderBody) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "3f97c601-cd3a-433b-8f63-515e245f061a",
+      "name": "Submit Render",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2016,
+        288
+      ],
+      "credentials": {
+        "httpTemplatedCustomAuth": {
+          "id": "i9a08PYr9WamPtiT",
+          "name": "Apify API Token (yuvaraj)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 15
+      },
+      "id": "4a6cfc52-1d5c-4529-9241-58b77515aa29",
+      "name": "Wait for Render",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2240,
+        288
+      ],
+      "webhookId": "b0df7fd5-c1f3-4227-82f9-a9645580b745"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.shotstack.io/edit/stage/render/{{ $(\"Submit Render\").item.json.response.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpTemplatedCustomAuth",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "0885748f-3bb2-4dc1-b8cb-aa7692940422",
+      "name": "Check Render Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2464,
+        224
+      ],
+      "credentials": {
+        "httpTemplatedCustomAuth": {
+          "id": "i9a08PYr9WamPtiT",
+          "name": "Apify API Token (yuvaraj)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "done",
+              "leftValue": "={{ $json.response.status }}",
+              "rightValue": "done",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d0dfe133-49d3-45e4-8d92-9bb52189c849",
+      "name": "Render Done?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2688,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-2.5-flash",
+          "cachedResultName": "gemini-2.5-flash"
+        },
+        "text": "This is an auto-generated 9:16 travel Reel. Assess it against these goals: correct vertical format, smooth pacing, clips not too long/short, captions readable, no obvious glitches. Return JSON: { \"passed\": true|false, \"score\": 1-10, \"issues\": [..], \"summary\": \"one sentence\" }.",
+        "videoUrls": "={{ $json.response.url }}",
+        "options": {
+          "maxOutputTokens": 1024
+        }
+      },
+      "id": "59e0d0de-9dc0-4c39-bcea-08980caacebf",
+      "name": "AI Quality Check",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        2912,
+        176
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $(\"Prepare Inputs\").item.json.email }}",
+        "subject": "Your AI Trip Reel is ready 🎬",
+        "message": "=<h2>Your travel Reel is ready!</h2>\n<p>We built an original 9:16 Reel from your own photos and videos, inspired by your reference.</p>\n<p><b>Download / preview:</b> <a href=\"{{ $(\"Check Render Status\").item.json.response.url }}\">{{ $(\"Check Render Status\").item.json.response.url }}</a></p>\n<p><b>AI quality check:</b> {{ $json.content }}</p>\n<p>Want changes? Re-submit the form with instructions like \"make it faster\", \"use more photos\", \"make it cinematic\", \"remove the text\", or \"make it 15 seconds\".</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "6f657d3a-2500-494b-a9e3-765ae42a8f39",
+      "name": "Send Final Reel",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        3136,
+        176
+      ],
+      "webhookId": "bc9c7948-9176-4182-8576-afb7e49f1916",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qKSc38NlJ4bOCAB6",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "failed",
+              "leftValue": "={{ $json.response.status }}",
+              "rightValue": "failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c6008c88-74b3-4d62-a95a-323d59a102d5",
+      "name": "Render Failed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2912,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $(\"Prepare Inputs\").item.json.email }}",
+        "subject": "Your AI Trip Reel could not be rendered",
+        "message": "=<p>Sorry — the render failed. Status: {{ $(\"Check Render Status\").item.json.response.status }}. Please re-submit the form, and make sure every media URL is a public direct link to an image or video file.</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "24381dd4-f812-4f03-90fc-23eeaa7c00f0",
+      "name": "Send Failure Notice",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        3136,
+        384
+      ],
+      "webhookId": "4c92882e-ace9-4047-8bde-9155b12453b3",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qKSc38NlJ4bOCAB6",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Trip Reel Request": {
+      "main": [
+        [
+          {
+            "node": "Has Reel Link?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Reel Link?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Instagram Reel",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Analyze Reference (Upload)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Instagram Reel": {
+      "main": [
+        [
+          {
+            "node": "Analyze Reference (URL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Reference (URL)": {
+      "main": [
+        [
+          {
+            "node": "Reference Branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reference Branches": {
+      "main": [
+        [
+          {
+            "node": "Reference Recipe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Reference (Upload)": {
+      "main": [
+        [
+          {
+            "node": "Reference Branches",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Reference Recipe": {
+      "main": [
+        [
+          {
+            "node": "Combine Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Analysis": {
+      "main": [
+        [
+          {
+            "node": "Build Edit Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Inputs": {
+      "main": [
+        [
+          {
+            "node": "Analyze Photos",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Analyze Videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Photos": {
+      "main": [
+        [
+          {
+            "node": "Media Branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Media Branches": {
+      "main": [
+        [
+          {
+            "node": "Consolidate Media Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Videos": {
+      "main": [
+        [
+          {
+            "node": "Media Branches",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Consolidate Media Analysis": {
+      "main": [
+        [
+          {
+            "node": "Combine Analysis",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Build Edit Plan": {
+      "main": [
+        [
+          {
+            "node": "Build Render Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Render Payload": {
+      "main": [
+        [
+          {
+            "node": "Submit Render",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Submit Render": {
+      "main": [
+        [
+          {
+            "node": "Wait for Render",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Render": {
+      "main": [
+        [
+          {
+            "node": "Check Render Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Render Status": {
+      "main": [
+        [
+          {
+            "node": "Render Done?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Done?": {
+      "main": [
+        [
+          {
+            "node": "AI Quality Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Render Failed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Quality Check": {
+      "main": [
+        [
+          {
+            "node": "Send Final Reel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Failed?": {
+      "main": [
+        [
+          {
+            "node": "Send Failure Notice",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait for Render",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "c781221d-cb8f-4a4c-89cc-6b8557466cfb",
+  "meta": {
+    "instanceId": "3d0ce7b2556effb92b793a462fe35f0ac9c8bfbce5c18f9f895d753ff6df11ba"
+  },
+  "nodeGroups": [
+    {
+      "id": "a48af86c-197c-44e5-a6c4-ef16d24fcacb",
+      "name": "Reference Analysis",
+      "nodeIds": [
+        "4ed76e31-82cc-4846-a0ac-594976054a53",
+        "650a1346-8bd5-46ea-beb5-5f7d1c3dab86",
+        "12f650e6-af93-4f9d-a0da-50fbe0f01c96",
+        "32384e12-75eb-4183-a509-7e89a22b1e3a",
+        "7ccefd23-9a42-45c8-85dd-03b25eabe071",
+        "23aeba20-985b-4892-9745-c23e9de3d49f"
+      ],
+      "description": "Fetches (link) or reads (upload) the reference Reel and extracts its editing recipe with Gemini."
+    },
+    {
+      "id": "9ef37a7b-f5a7-4713-9b84-a498fe548440",
+      "name": "Media Analysis",
+      "nodeIds": [
+        "b89bf8d5-b30e-490e-adb1-a0b93d87db5b",
+        "a519dfe9-a2fe-43c2-98c4-1dd495343b79",
+        "94bb53d0-ec7b-4000-9cd0-50a3a590d0de",
+        "5432cdc3-58f5-4c96-a321-6c0163cd8388",
+        "5c6863b1-c476-45a8-92a5-be4a00120f5b"
+      ],
+      "description": "Analyzes the traveler's own photos and videos and selects the best moments."
+    }
+  ],
+  "id": "qxP5VTW6c9irD5rr",
+  "tags": []
+}
